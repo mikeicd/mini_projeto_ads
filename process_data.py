@@ -41,16 +41,29 @@ def calculate_confidence_interval(
     print(
         f"Confidence Interval ({confidence_level*100}%): ({lower_bound}, {upper_bound})"
     )
+    
+def analize_data(df):
+    data = []
+    for ut in df['trafego'].unique():
+        for up in df['proto'].unique():
+            for ub in df['ber'].unique():
+                for ud in df['delay'].unique():
+                    dff = filter_df(df, trafego=ut, proto=up, ber=ub, delay=ud)
+                    mean = dff["transfbits"].mean()
+                    std = dff["transfbits"].std()
+                    
+                    logging.debug(f' Mean = {mean}')
+                    logging.debug(f' Std = {std}')
+                    
+    
+            
+    
 
 
 if __name__ == "__main__":
-    df = process_data("data/cliente.csv")
-    mean = df["transfbits"].mean()
-    std = df["transfbits"].std()
-    size = df["transfbits"].size
+    df = process_data("data/cliente.csv")    
     
-    logging.debug(f'Unique protos = {df["proto"].unique()}')
-    
-    fdf = filter_df(df, proto='reno')
-    logging.debug(f'\n{fdf}')
+    # fdf = filter_df(df, proto='reno')
+    # logging.debug(f'\n{fdf}')
     # calculate_confidence_interval(size, mean, std, 0.90)
+    analize_data(df)
