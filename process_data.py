@@ -6,13 +6,13 @@ from scipy import stats
 import matplotlib.pyplot as plt
 
 logging.basicConfig(
-    level=logging.WARNING,  # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    level=logging.INFO,  # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     format="%(asctime)s - %(levelname)s - %(message)s",  # Log message format
 )
 
 
 def plot_c_interval(df, mean, margin_error, filtro, col):
-    logging.warning(df)
+    logging.debug(df)
     def plot_confidence_interval(x, mean, margin_error, color="#2187bb", hlw=0.10):
         left = x - hlw
         top = mean - margin_error
@@ -108,4 +108,4 @@ def analize_data(df):
 if __name__ == "__main__":
     df = process_data("data/cliente.csv")
     analized_df = analize_data(df)
-    logging.debug(f"Resultado da análise \n{analized_df}")
+    logging.info(f"Resultado da análise \n{analized_df}")
