@@ -3,11 +3,36 @@ import logging
 import pandas as pd
 import numpy as np
 from scipy import stats
+import matplotlib.pyplot as plt
 
 logging.basicConfig(
-    level=logging.DEBUG,  # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    level=logging.WARNING,  # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     format="%(asctime)s - %(levelname)s - %(message)s",  # Log message format
 )
+
+
+def plot_c_interval(df, mean, margin_error, filtro, col):
+    logging.warning(df)
+    def plot_confidence_interval(x, mean, margin_error, color="#2187bb", hlw=0.10):
+        left = x - hlw
+        top = mean - margin_error
+        right = x + hlw
+        bottom = mean + margin_error
+        plt.plot([bottom, top], [x, x], color=color)
+        plt.plot([top, top], [left, right], color=color)
+        plt.plot([bottom, bottom], [left, right], color=color)
+        plt.plot(mean, x, "o", color="#f44336")
+    lista = df.index.tolist()
+    lista = [item + 1 for item in lista]
+    plt.yticks(lista)
+    plt.title(f"Confidence Interval {col} - {filtro}")
+    plt.plot([mean, mean], [0, 11], color='#5555')
+    for index, row in df.iterrows():
+        x_value = index + 1
+        mean_value = row[col]
+        plot_confidence_interval(x_value, mean_value, margin_error)
+    plt.savefig(f'data/plots/{col}-{filtro}.png')
+    plt.close()
 
 
 def filter_df(df, **kwargs):
@@ -28,42 +53,59 @@ def calculate_confidence_interval(
 ):
     degrees_of_freedom = sample_size - 1
 
-    # Calculate the t-score for the given confidence level and degrees of freedom
     t_score = stats.t.ppf((1 + confidence_level) / 2, df=degrees_of_freedom)
 
-    # Calculate the margin of error
     margin_of_error = t_score * (sample_std / np.sqrt(sample_size))
 
-    # Calculate the confidence interval
-    lower_bound = sample_mean - margin_of_error
-    upper_bound = sample_mean + margin_of_error
+    return margin_of_error
 
-    print(
-        f"Confidence Interval ({confidence_level*100}%): ({lower_bound}, {upper_bound})"
-    )
-    
+
 def analize_data(df):
-    data = []
-    for ut in df['trafego'].unique():
-        for up in df['proto'].unique():
-            for ub in df['ber'].unique():
-                for ud in df['delay'].unique():
+    result_data = []
+    for ut in df["trafego"].unique():
+        for up in df["proto"].unique():
+            for ub in df["ber"].unique():
+                for ud in df["delay"].unique():
                     dff = filter_df(df, trafego=ut, proto=up, ber=ub, delay=ud)
-                    mean = dff["transfbits"].mean()
-                    std = dff["transfbits"].std()
+                    dff = dff.reset_index(drop=True)
+                    filtro = f"{ut}{up}b{ub}d{ud}"
+                    logging.debug(dff)
+
+                    tmean = dff["transfbits"].mean()
+                    tstd = dff["transfbits"].std()
+                    tmargin_e = calculate_confidence_interval(
+                        dff["transfbits"].size, tmean, tstd, 0.99
+                    )
+
+                    plot_c_interval(dff, tmean, tmargin_e, filtro, "transfbits")
+
+                    bmean = dff["bps"].mean()
+                    bstd = dff["bps"].std()
+                    bmargin_e = calculate_confidence_interval(
+                        dff["bps"].size, bmean, bstd, 0.99
+                    )
                     
-                    logging.debug(f' Mean = {mean}')
-                    logging.debug(f' Std = {std}')
-                    
-    
-            
-    
+                    plot_c_interval(dff, bmean, bmargin_e, filtro, "bps")
+
+                    result_data.append(
+                        (
+                            filtro,
+                            tmean,
+                            tstd,
+                            tmargin_e,
+                            bmean,
+                            bstd,
+                            bmargin_e,
+                        )
+                    )
+
+    return pd.DataFrame(
+        result_data,
+        columns=["filtro", "tmean", "tstd", "tmargin_e", "bmean", "bstd", "bmargin_e"],
+    )
 
 
 if __name__ == "__main__":
-    df = process_data("data/cliente.csv")    
-    
-    # fdf = filter_df(df, proto='reno')
-    # logging.debug(f'\n{fdf}')
-    # calculate_confidence_interval(size, mean, std, 0.90)
-    analize_data(df)
+    df = process_data("data/cliente.csv")
+    analized_df = analize_data(df)
+    logging.debug(f"Resultado da análise \n{analized_df}")
