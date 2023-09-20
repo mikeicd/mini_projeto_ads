@@ -13,6 +13,12 @@ O mini projeto tem as seguintes funções:
 - Python 3
 - Senha de super usuário
 
+### Pacotes Python
+
+```
+pip3 install -r requirements.txt
+```
+
 ## Utilizando a aplicação
 
 Exemplo de uso:
