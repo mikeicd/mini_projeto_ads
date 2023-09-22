@@ -1,20 +1,15 @@
 import subprocess
-import sys
 import os
-import time
 import shutil
 import argparse
-import time
 import logging
-import pandas as pd
-
-from process_data import process_data
 
 logging.basicConfig()
 
 current_directory = os.getcwd()
 
-wait_time = 5
+wait_time = 120
+interval_time = 5
 
 
 def start_project(args):
@@ -60,93 +55,67 @@ def start_ads(args):
     BER = ["100000", "1000000"] if args.ber is None else [args.ber]
     e2e_delay = ["10000", "100000"] if args.delay is None else [args.delay]
     trafego_bg = ["500m", "750m"] if args.trafego is None else [args.trafego]
-    
+
     logging.warning(alg)
     logging.warning(BER)
     logging.warning(e2e_delay)
     logging.warning(trafego_bg)
-    
 
-    headers = "rep,trafego,proto,ber,delay,time,addrsrc,portsrc,addrdest,portdest,nsei,nsei,transfbits,bps"
-    headers_command_sv = f"echo '{headers}' >> data/server.csv"
-    headers_command_cl = f"echo '{headers}' >> data/cliente.csv"
-    sub = subprocess.Popen(
-        headers_command_sv,
+    # INIT
+    # Configuracao trafego background
+    cmd_iperf_server_udp = f"sudo himage pc1@{id} iperf -s -u"
+
+    cmd_iperf_server = f"sudo himage pc2@{id} iperf -s"
+
+    subprocess.Popen(cmd_iperf_server_udp.split())
+
+    subprocess.Popen(
+        cmd_iperf_server,
         shell=True,
         stdout=subprocess.PIPE,
         text=True,
     )
-
-    sub = subprocess.Popen(
-        headers_command_cl,
-        shell=True,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-
-    for rep in range(repeticoes):
-        for trafego in trafego_bg:
-            for proto in alg:
-                for ber in BER:
+    for rep in range(repeticoes):        
+        for proto in alg:            
+            for trafego in trafego_bg:             
+                for ber in BER:                 
                     for e2e in e2e_delay:
-                        ident = f"{rep},{trafego},{proto},{ber},{e2e}"
+                        
+                        ident = f"{proto}-{trafego}-{ber}-{e2e}-{rep}"
+                        headers = "time,addrsrc,portsrc,addrdest,portdest,nsei,nsei,transfbits,bps"
+                        headers_command_cl = f"echo '{headers}' >> data/{ident}.csv"
+
+                        sub = subprocess.Popen(
+                            headers_command_cl,
+                            shell=True,
+                            stdout=subprocess.PIPE,
+                            text=True,
+                        )
 
                         # Configuracao do link
                         cmd_link_router = f"sudo vlink -bw {bw} -BER {ber} -d {e2e} router1:router2@{id}"
-
-                        # Configuracao trafego background
-                        cmd_iperf_server_udp = (
-                            f"sudo himage pc1@{id} iperf -s -u -t {wait_time+5}"
-                        )
-                        cmd_iperf_client_udp = f"sudo himage pc3@{id} iperf -c 10.0.0.20 -u -t {wait_time+3} -b {trafego}"
+                        cmd_iperf_client_udp = f"sudo himage pc3@{id} iperf -c 10.0.0.20 -u -t {wait_time} -b {trafego}"
 
                         # Configuracao testes dados
-                        ident_sv = f"echo -n '{ident},' >> data/server.csv"
-                        ident_cl = f"echo -n '{ident},' >> data/cliente.csv"
-                        cmd_iperf_server = f"sudo himage pc2@{id} iperf -s -t {wait_time+1} -Z {proto} -e -y C >> data/server.csv"
-                        cmd_iperf_client = f"sudo himage pc4@{id} iperf -c 10.0.1.20 -t {wait_time} -e -Z {proto} -y C >> data/cliente.csv"
+                        cmd_iperf_client = f"sudo himage pc4@{id} iperf -c 10.0.1.20 -i {interval_time} -t {wait_time} -Z {proto} -y C >> data/{ident}.csv"
 
                         ### Rodando comandos
-
-                        # Run identificadores das linhas
-                        sub = subprocess.Popen(
-                            ident_sv,
-                            shell=True,
-                            stdout=subprocess.PIPE,
-                            text=True,
-                        )
-                        sub.wait()
-                        sub = subprocess.Popen(
-                            ident_cl,
-                            shell=True,
-                            stdout=subprocess.PIPE,
-                            text=True,
-                        )
-                        sub.wait()
-
                         # Run Link
                         sub = subprocess.Popen(cmd_link_router.split())
                         sub.wait()
 
                         # Run trafego UDP
-                        sub = subprocess.Popen(cmd_iperf_server_udp.split())
                         subprocess.Popen(cmd_iperf_client_udp.split())
 
                         # Run trafego TCP
-                        subprocess.Popen(
-                            cmd_iperf_server,
-                            shell=True,
-                            stdout=subprocess.PIPE,
-                            text=True,
-                        )
-                        subprocess.Popen(
+                        tcp = subprocess.Popen(
                             cmd_iperf_client,
                             shell=True,
                             stdout=subprocess.PIPE,
                             text=True,
                         )
 
-                        sub.wait()
+                        tcp.wait()
 
 
 if __name__ == "__main__":
@@ -160,9 +129,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-proto", type=str, default=None, help="Protocolo [cubic,reno]."
     )
-    parser.add_argument(
-        "-clean", type=bool, default=False, help="Clean files"
-    )
+    parser.add_argument("-clean", type=bool, default=False, help="Clean files")
 
     args = parser.parse_args()
 

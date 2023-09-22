@@ -1,4 +1,5 @@
 import logging
+import os
 
 import pandas as pd
 import numpy as np
@@ -11,8 +12,20 @@ logging.basicConfig(
 )
 
 
+def plot_confidence_interval2(x, mean, margin_error, color="#2187bb", hlw=0.10):
+    left = x - hlw
+    top = mean - margin_error
+    right = x + hlw
+    bottom = mean + margin_error
+    plt.plot([bottom, top], [x, x], color=color)
+    plt.plot([top, top], [left, right], color=color)
+    plt.plot([bottom, bottom], [left, right], color=color)
+    plt.plot(mean, x, "o", color="#f44336")
+
+
 def plot_c_interval(df, mean, margin_error, filtro, col):
     logging.debug(df)
+
     def plot_confidence_interval(x, mean, margin_error, color="#2187bb", hlw=0.10):
         left = x - hlw
         top = mean - margin_error
@@ -22,16 +35,17 @@ def plot_c_interval(df, mean, margin_error, filtro, col):
         plt.plot([top, top], [left, right], color=color)
         plt.plot([bottom, bottom], [left, right], color=color)
         plt.plot(mean, x, "o", color="#f44336")
+
     lista = df.index.tolist()
     lista = [item + 1 for item in lista]
     plt.yticks(lista)
     plt.title(f"Confidence Interval {col} - {filtro}")
-    plt.plot([mean, mean], [0, 11], color='#5555')
+    plt.plot([mean, mean], [0, 25], color="#5555")
     for index, row in df.iterrows():
         x_value = index + 1
         mean_value = row[col]
         plot_confidence_interval(x_value, mean_value, margin_error)
-    plt.savefig(f'data/plots/{col}-{filtro}.png')
+    plt.savefig(f"plots/{col}-{filtro}.png")
     plt.close()
 
 
@@ -48,9 +62,29 @@ def process_data(file):
     return df
 
 
-def calculate_confidence_interval(
-    sample_size, sample_mean, sample_std, confidence_level
-):
+def list_files(path):
+    file_list = []
+    for filename in os.listdir(path):
+        if os.path.isfile(os.path.join(path, filename)):
+            file_list.append(filename)
+    return file_list
+
+
+def contruct_df_by_files(file_list):
+    ordem = ["config", "transfbits", "bps", "rep"]
+    dataframes = []
+    for file in file_list:
+        df = process_data("data/" + file)
+        config = file[:-6]
+        rep = file[len(file) - 5 : -4]
+        df["config"] = config
+        df["rep"] = rep
+        df = df[ordem]
+        dataframes.append(df)
+    return pd.concat(dataframes, ignore_index=True)
+
+
+def calculate_confidence_interval(sample_size, sample_std, confidence_level):
     degrees_of_freedom = sample_size - 1
 
     t_score = stats.t.ppf((1 + confidence_level) / 2, df=degrees_of_freedom)
@@ -62,50 +96,44 @@ def calculate_confidence_interval(
 
 def analize_data(df):
     result_data = []
-    for ut in df["trafego"].unique():
-        for up in df["proto"].unique():
-            for ub in df["ber"].unique():
-                for ud in df["delay"].unique():
-                    dff = filter_df(df, trafego=ut, proto=up, ber=ub, delay=ud)
-                    dff = dff.reset_index(drop=True)
-                    filtro = f"{ut}{up}b{ub}d{ud}"
-                    logging.debug(dff)
+    columns = ["transfbits", "bps"]
+    for col in columns:
+        for uc in df["config"].unique():
+            dff1 = filter_df(df, config=uc)
+            dff1 = dff1.reset_index(drop=True)
+            lista = dff1.index.tolist()
+            lista = [item + 1 for item in lista]
+            dff1_mean = dff1[col].mean()
+            plt.yticks(lista)
+            plt.title(f"Confidence Interval - {col} - {uc}")
+            plt.plot([dff1_mean, dff1_mean], [0, 6], color="#5555")
+            i = 0
+            for ur in df["rep"].unique():
+                dff2 = filter_df(df, config=uc, rep=ur)
+                dff2 = dff2.reset_index(drop=True)
+                dff2_std = dff2[col].std()
+                dff2_mean = dff2[col].mean()
 
-                    tmean = dff["transfbits"].mean()
-                    tstd = dff["transfbits"].std()
-                    tmargin_e = calculate_confidence_interval(
-                        dff["transfbits"].size, tmean, tstd, 0.99
-                    )
+                margin_error = calculate_confidence_interval(
+                    dff2[col].size, dff2_std, 0.99
+                )
+                plot_confidence_interval2(lista[i], dff2_mean, margin_error)
+                i += 1
 
-                    plot_c_interval(dff, tmean, tmargin_e, filtro, "transfbits")
+            result_data.append(
+                (
+                    uc,
+                    dff1[col].mean(),
+                    dff1[col].std(),
+                )
+            )
+            plt.savefig(f"plots/{col}-{uc}.png")
+            plt.close()
 
-                    bmean = dff["bps"].mean()
-                    bstd = dff["bps"].std()
-                    bmargin_e = calculate_confidence_interval(
-                        dff["bps"].size, bmean, bstd, 0.99
-                    )
-                    
-                    plot_c_interval(dff, bmean, bmargin_e, filtro, "bps")
-
-                    result_data.append(
-                        (
-                            filtro,
-                            tmean,
-                            tstd,
-                            tmargin_e,
-                            bmean,
-                            bstd,
-                            bmargin_e,
-                        )
-                    )
-
-    return pd.DataFrame(
-        result_data,
-        columns=["filtro", "tmean", "tstd", "tmargin_e", "bmean", "bstd", "bmargin_e"],
-    )
+    return pd.DataFrame(result_data, columns=["config", "mean", "std"])
 
 
 if __name__ == "__main__":
-    df = process_data("data/cliente.csv")
+    df = contruct_df_by_files(list_files("./data"))
     analized_df = analize_data(df)
     logging.info(f"Resultado da análise \n{analized_df}")
