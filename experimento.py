@@ -8,7 +8,7 @@ import time
 import logging
 import pandas as pd
 
-from process_data import process_data
+from processa_dados import process_data
 
 logging.basicConfig()
 
