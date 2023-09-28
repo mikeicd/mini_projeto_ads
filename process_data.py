@@ -75,6 +75,7 @@ def contruct_df_by_files(file_list):
     dataframes = []
     for file in file_list:
         df = process_data("data/" + file)
+        df = df.drop(df.index[-1])
         config = file[:-6]
         rep = file[len(file) - 5 : -4]
         df["config"] = config
@@ -106,16 +107,15 @@ def analize_data(df):
             dff1_mean = dff1[col].mean()
             plt.yticks(lista)
             plt.title(f"Confidence Interval - {col} - {uc}")
-            plt.plot([dff1_mean, dff1_mean], [0, 6], color="#5555")
+            plt.plot([dff1_mean, dff1_mean], [0.8, 5.2], color="#5555")
             i = 0
             for ur in df["rep"].unique():
                 dff2 = filter_df(df, config=uc, rep=ur)
                 dff2 = dff2.reset_index(drop=True)
                 dff2_std = dff2[col].std()
                 dff2_mean = dff2[col].mean()
-
                 margin_error = calculate_confidence_interval(
-                    dff2[col].size, dff2_std, 0.99
+                    dff2[col].size, dff2[col].std(), 0.99
                 )
                 plot_confidence_interval2(lista[i], dff2_mean, margin_error)
                 i += 1
@@ -123,6 +123,7 @@ def analize_data(df):
             result_data.append(
                 (
                     uc,
+                    col,
                     dff1[col].mean(),
                     dff1[col].std(),
                 )
@@ -130,7 +131,7 @@ def analize_data(df):
             plt.savefig(f"plots/{col}-{uc}.png")
             plt.close()
 
-    return pd.DataFrame(result_data, columns=["config", "mean", "std"])
+    return pd.DataFrame(result_data, columns=["config", "col", "mean", "std"])
 
 
 if __name__ == "__main__":
