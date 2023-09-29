@@ -11,6 +11,10 @@ logging.basicConfig(
 )
 
 
+def plot_bar(x, mean, margin):
+    plt.bar(x, mean, yerr=margin, align="center", alpha=0.5, ecolor="black", capsize=10)
+
+
 def plot_confidence_interval(x, mean, margin_error, filtro, color="#2187bb", hlw=0.10):
     left = x - hlw
     top = mean - margin_error
@@ -20,30 +24,6 @@ def plot_confidence_interval(x, mean, margin_error, filtro, color="#2187bb", hlw
     plt.plot([top, top], [left, right], color=color)
     plt.plot([bottom, bottom], [left, right], color=color)
     plt.plot(mean, x, "o", color="#f44336")
-
-
-# def plot_c_interval(df, mean, margin_error, filtro, col):
-#     logging.debug(df)
-#     def plot_confidence_interval(x, mean, margin_error, color="#2187bb", hlw=0.10):
-#         left = x - hlw
-#         top = mean - margin_error
-#         right = x + hlw
-#         bottom = mean + margin_error
-#         plt.plot([bottom, top], [x, x], color=color)
-#         plt.plot([top, top], [left, right], color=color)
-#         plt.plot([bottom, bottom], [left, right], color=color)
-#         plt.plot(mean, x, "o", color="#f44336")
-#     lista = df.index.tolist()
-#     lista = [item + 1 for item in lista]
-#     plt.yticks(lista)
-#     plt.title(f"Confidence Interval {col} - {filtro}")
-#     plt.plot([mean, mean], [0, 11], color='#5555')
-#     for index, row in df.iterrows():
-#         x_value = index + 1
-#         mean_value = row[col]
-#         plot_confidence_interval(x_value, mean_value, margin_error)
-#     plt.savefig(f'data/plots/{col}-{filtro}.png')
-#     plt.close()
 
 
 def filter_df(df, **kwargs):
@@ -75,37 +55,40 @@ def analize_data(df):
     result_data = []
     columns = ["bps", "transfbits"]
     for col in columns:
-        i = 0
-        filters = []
-        plt.figure(figsize=(16,9))
-        for ut in df["trafego"].unique():
-            for up in df["proto"].unique():
-                for ub in df["ber"].unique():
-                    for ud in df["delay"].unique():
+        for ud in df["delay"].unique():
+            for ut in df["trafego"].unique():
+                i = 0
+                plt.figure(figsize=(16, 9))
+                filters = []
+                for up in df["proto"].unique():
+                    for ub in df["ber"].unique():
                         dff = filter_df(df, trafego=ut, proto=up, ber=ub, delay=ud)
                         dff = dff.reset_index(drop=True)
-                        filtro = f"{ut}{up}b{ub}d{ud}"
+                        filtro = f"{up}"
                         filters.append(filtro)
-                        
                         mean = dff[col].mean()
                         std = dff[col].std()
-                        margin_e = calculate_confidence_interval(
+                        margin = calculate_confidence_interval(
                             dff[col].size, mean, std, 0.99
                         )
 
-                        plot_confidence_interval(i + 1, mean, margin_e, filtro)
+                        # plot_confidence_interval(i + 1, mean, margin, filtro)
+                        plot_bar(i + 1, mean, margin)
                         i += 1
 
-                        result_data.append((filtro, mean/1000, std/1000, margin_e/1000, col))
-        
-        plt.yticks(np.arange(1, 17), filters)
-        plt.title(f"Confidence Interval {col}")
-        plt.savefig(f"data/plots/{col}-.png")
-        plt.close()
+                        result_data.append(
+                            (filtro, mean / 10000, std / 1000, margin / 1000, col)
+                        )
+
+                # plt.yticks(np.arange(1, len(filters) + 1), filters)
+                plt.xticks([1, 2], filters)
+                plt.title(f"Intervalo de confiança - {col} - {ud/1000}ns - {ut}")
+                plt.savefig(f"data/plots/{col}-{ud/1000}-{ut}.png")
+                plt.close()
 
     return pd.DataFrame(
         result_data,
-        columns=["filtro", "mean(M)", "std(M)", "margin_e(M)", "col"],
+        columns=["filtro", "mean(M)", "std(K)", "margin_e(K)", "col"],
     )
 
 
